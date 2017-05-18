@@ -12,15 +12,21 @@ import PusherSwift
 import JSQMessagesViewController
 
 class ChatViewController: JSQMessagesViewController {
+    static let API_ENDPOINT = "http://localhost:4000";
+    
     var messages = [JSQMessage]()
     var pusher : Pusher!
+    
     var incomingBubble: JSQMessagesBubbleImage!
     var outgoingBubble: JSQMessagesBubbleImage!
     
-    static let API_ENDPOINT = "http://localhost:4000";
-    
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        let n = Int(arc4random_uniform(1000))
+        
+        senderId = "anonymous" + String(n)
+        senderDisplayName = senderId
         
         inputToolbar.contentView.leftBarButtonItem = nil
         
@@ -35,57 +41,7 @@ class ChatViewController: JSQMessagesViewController {
         collectionView?.reloadData()
         collectionView?.layoutIfNeeded()
         
-        let n = Int(arc4random_uniform(10000))
-        
-        senderId = "anonymous" + String(n)
-        senderDisplayName = senderId
-        
         listenForNewMessages()
-    }
-    
-    private func listenForNewMessages() {
-        let options = PusherClientOptions(
-            host: .cluster("us2")
-        )
-        
-        pusher = Pusher(key: "f0f1a7922824b61719d5", options: options)
-        
-        let channel = pusher.subscribe("chatroom")
-        let _ = channel.bind(eventName: "new_message", callback: { (data: Any?) -> Void in
-            
-            if let data = data as? [String: AnyObject] {
-                let author = data["sender"] as! String
-                
-                if author != self.senderId {
-                    let text = data["text"] as! String
-                    self.addMessage(senderId: author, name: author, text: text)
-                    self.finishReceivingMessage(animated: true)
-                }
-            }
-        })
-        pusher.connect()
-    }
-    
-    private func addMessage(senderId: String, name: String, text: String) {
-        if let message = JSQMessage(senderId: senderId, displayName: name, text: text) {
-            messages.append(message)
-        }
-    }
-    
-    private func postMessage(name: String, message: String) {
-        let params: Parameters = ["sender": name, "text": message]
-        
-        Alamofire.request(ChatViewController.API_ENDPOINT + "/messages", method: .post, parameters: params).validate().responseJSON { response in
-            switch response.result {
-                
-            case .success:
-                // Succeeded, do something
-                print("Succeeded")
-            case .failure(let error):
-                // Failed, do something
-                print(error)
-            }
-        }
     }
     
     override func collectionView(_ collectionView: JSQMessagesCollectionView!, messageDataForItemAt indexPath: IndexPath!) -> JSQMessageData! {
@@ -123,5 +79,50 @@ class ChatViewController: JSQMessagesViewController {
     private func setupIncomingBubble() -> JSQMessagesBubbleImage {
         let bubbleImageFactory = JSQMessagesBubbleImageFactory()
         return bubbleImageFactory!.incomingMessagesBubbleImage(with: UIColor.jsq_messageBubbleGreen())
+    }
+    
+    private func postMessage(name: String, message: String) {
+        let params: Parameters = ["sender": name, "text": message]
+        
+        Alamofire.request(ChatViewController.API_ENDPOINT + "/messages", method: .post, parameters: params).validate().responseJSON { response in
+            switch response.result {
+                
+            case .success:
+                // Succeeded, do something
+                print("Succeeded")
+            case .failure(let error):
+                // Failed, do something
+                print(error)
+            }
+        }
+    }
+    
+    private func addMessage(senderId: String, name: String, text: String) {
+        if let message = JSQMessage(senderId: senderId, displayName: name, text: text) {
+            messages.append(message)
+        }
+    }
+    
+    private func listenForNewMessages() {
+        let options = PusherClientOptions(
+            host: .cluster("us2")
+        )
+        
+        pusher = Pusher(key: "f0f1a7922824b61719d5", options: options)
+        
+        let channel = pusher.subscribe("chatroom")
+        let _ = channel.bind(eventName: "new_message", callback: { (data: Any?) -> Void in
+            
+            if let data = data as? [String: AnyObject] {
+                let author = data["sender"] as! String
+                
+                if author != self.senderId {
+                    let text = data["text"] as! String
+                    self.addMessage(senderId: author, name: author, text: text)
+                    self.finishReceivingMessage(animated: true)
+                }
+            }
+        })
+        pusher.connect()
     }
 }
